@@ -8,12 +8,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hairongchen/tdx-attest.git"
 
-[lib]
-name = "tdx_attest"
-path = "src/tdx_attest.rs"
-
 [dependencies]
-nix = "0.26.2"
-base64 = "0.13.0"
+nix = "0.26"
 anyhow = "1.0"
 
