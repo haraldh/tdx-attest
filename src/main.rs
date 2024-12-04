@@ -32,7 +32,8 @@ pub enum TdxOperation {
 const REPORT_DATA_LEN: usize = 64;
 const TDX_REPORT_LEN: usize = 1024;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum TeeType {
     SGX,
     TDX,
@@ -40,8 +41,8 @@ pub enum TeeType {
 
 /// REPORTTYPE indicates the reported Trusted Execution Environment (TEE) type,
 /// sub-type and version.
-#[repr(C)]
-#[derive(Debug)]
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
 pub struct ReportType {
     /// Trusted Execution Environment (TEE) Type. 0x00: SGX, 0x81: TDX.
     pub tee_type: TeeType,
@@ -52,8 +53,8 @@ pub struct ReportType {
     pub reserved: u8,
 }
 
-#[repr(C)]
-#[derive(Debug)]
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
 pub struct ReportMac {
     /// Type Header Structure.
     pub report_type: ReportType,
@@ -75,8 +76,8 @@ pub struct ReportMac {
 /// locked at initialization and a set of measurement registers that are run-time
 /// extendable. These values are copied from the TDCS by the TDG.MR.REPORT function.
 /// Refer to the [TDX Module Base Spec] for additional details.
-#[repr(C)]
-#[derive(Debug)]
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
 pub struct TdInfo {
     /// TD’s ATTRIBUTES.
     pub attributes: u64,
@@ -103,8 +104,8 @@ pub struct TdInfo {
     pub reserved: [u8; 64],
 }
 
-#[repr(C)]
-#[derive(Debug)]
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
 pub struct TdReport {
     /// REPORTMACSTRUCT for the TDG.MR.REPORT.
     pub report_mac: ReportMac,
@@ -165,7 +166,7 @@ pub fn main() -> Result<()> {
         .open("/dev/tdx_guest")
         .context("opening /dev/tdx_guest failed")?;
 
-    let report_data_bytes: [u8; REPORT_DATA_LEN] = [0; REPORT_DATA_LEN];
+    let report_data_bytes: [u8; REPORT_DATA_LEN] = [0xee; REPORT_DATA_LEN];
 
     let report = get_tdx_1_5_report(device_node, &report_data_bytes)?;
     println!("TDX Report: {:?}", report);
