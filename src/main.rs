@@ -6,7 +6,6 @@
 #![allow(non_camel_case_types)]
 
 use anyhow::{bail, Context, Result};
-use nix::*;
 use std::fs::File;
 use std::mem::MaybeUninit;
 use std::os::unix::io::AsRawFd;
@@ -14,50 +13,9 @@ use std::ptr;
 use std::ptr::slice_from_raw_parts_mut;
 
 #[repr(C)]
-pub struct tdx_1_5_report_req {
+pub struct TdxReportRequest {
     reportdata: [u8; REPORT_DATA_LEN], // User buffer with REPORTDATA to be included into TDREPORT
     tdreport: [u8; TDX_REPORT_LEN], // User buffer to store TDREPORT output from TDCALL[TDG.MR.REPORT]
-}
-
-#[repr(C)]
-pub struct qgs_msg_header {
-    major_version: u16, // TDX major version
-    minor_version: u16, // TDX minor version
-    msg_type: u32,      // GET_QUOTE_REQ or GET_QUOTE_RESP
-    size: u32,          // size of the whole message, include this header, in byte
-    error_code: u32,    // used in response only
-}
-
-#[repr(C)]
-pub struct qgs_msg_get_quote_req {
-    header: qgs_msg_header,                        // header.type = GET_QUOTE_REQ
-    report_size: u32,                              // cannot be 0
-    id_list_size: u32,                             // length of id_list, in byte, can be 0
-    report_id_list: [u8; TDX_REPORT_LEN], // report followed by id list
-}
-
-#[repr(C)]
-pub struct tdx_quote_hdr {
-    version: u64,                       // Quote version, filled by TD
-    status: u64,                        // Status code of Quote request, filled by VMM
-    in_len: u32,                        // Length of TDREPORT, filled by TD
-    out_len: u32,                       // Length of Quote, filled by VMM
-    data_len_be_bytes: [u8; 4],         // big-endian 4 bytes indicate the size of data following
-    data: [u8; TDX_QUOTE_LEN], // Actual Quote data or TDREPORT on input
-}
-
-#[repr(C)]
-pub struct tdx_quote_req {
-    buf: u64, // Pass user data that includes TDREPORT as input. Upon successful completion of IOCTL, output is copied back to the same buffer
-    len: u64, // Length of the Quote buffer
-}
-
-#[repr(C)]
-pub struct qgs_msg_get_quote_resp {
-    header: qgs_msg_header,        // header.type = GET_QUOTE_RESP
-    selected_id_size: u32,         // can be 0 in case only one id is sent in request
-    quote_size: u32,               // length of quote_data, in byte
-    id_quote: [u8; TDX_QUOTE_LEN], // selected id followed by quote
 }
 
 pub enum TdxVersion {
@@ -73,7 +31,6 @@ pub enum TdxOperation {
 
 const REPORT_DATA_LEN: usize = 64;
 const TDX_REPORT_LEN: usize = 1024;
-const TDX_QUOTE_LEN: usize = 4 * 4096;
 
 #[derive(Debug)]
 pub enum TeeType {
@@ -164,31 +121,31 @@ fn get_tdx_1_5_report(
     report_data_bytes: &[u8; REPORT_DATA_LEN],
 ) -> Result<TdReport> {
     //prepare get TDX report request data
-    let mut request = tdx_1_5_report_req {
+    let mut request = TdxReportRequest {
         reportdata: [0; REPORT_DATA_LEN],
-        tdreport: [0; TDX_REPORT_LEN as usize],
+        tdreport: [0; TDX_REPORT_LEN],
     };
     request.reportdata.copy_from_slice(report_data_bytes);
 
     //build the operator code
-    ioctl_readwrite!(
+    nix::ioctl_readwrite!(
         get_report_1_5_ioctl,
         b'T',
         TdxOperation::TDX_GET_TD_REPORT,
-        tdx_1_5_report_req
+        TdxReportRequest
     );
 
     //apply the ioctl command
     if let Err(e) = unsafe {
         get_report_1_5_ioctl(
             device_node.as_raw_fd(),
-            ptr::addr_of!(request) as *mut tdx_1_5_report_req,
+            ptr::addr_of!(request) as *mut TdxReportRequest,
         )
     } {
         bail!("[get_tdx_1_5_report] Failed to get TDX report: {:?}", e)
     };
 
-    const _: () = assert!((TDX_REPORT_LEN as usize) >= size_of::<TdReport>());
+    const _: () = assert!(TDX_REPORT_LEN >= size_of::<TdReport>());
 
     let mut td_report_buf = MaybeUninit::<TdReport>::uninit();
     let td_report = unsafe {
