@@ -5,7 +5,11 @@
     nixpkgs.follows = "nixsgx-flake/nixpkgs";
   };
 
-  outputs = { nixify, nixsgx-flake, ... }:
+  outputs = {
+    nixify,
+    nixsgx-flake,
+    ...
+  }:
     nixify.lib.rust.mkFlake {
       src = ./.;
 
@@ -13,25 +17,33 @@
         nixsgx-flake.overlays.default
       ];
 
-      withDevShells =
-        { devShells
-        , pkgs
-        , ...
-        }:
-        nixify.lib.extendDerivations
-          {
-            nativeBuildInputs = with pkgs; [
-              pkg-config
-              rustPlatform.bindgenHook
-            ];
-
-            buildInputs = with pkgs; [
-              openssl
-              nixsgx.sgx-sdk
-              nixsgx.sgx-dcap
-              nixsgx.sgx-dcap.libtdx_attest
-            ];
-          }
-          devShells;
+      buildOverrides = {
+        pkgs,
+        pkgsCross ? pkgs,
+        ...
+      } @ args: {
+        buildInputs ? [],
+        nativeBuildInputs ? [],
+        ...
+      } @ craneArgs: let
+        buildInputs' =
+          buildInputs
+          ++ (with pkgs; [
+            openssl
+            nixsgx.sgx-sdk
+            nixsgx.sgx-dcap.dev
+            nixsgx.sgx-dcap.libtdx_attest
+            libclang
+          ]);
+        nativeBuildInputs' =
+          nativeBuildInputs
+          ++ (with pkgs; [
+            pkgs.pkg-config
+            rustPlatform.bindgenHook
+          ]);
+      in {
+        buildInputs = buildInputs';
+        nativeBuildInputs = nativeBuildInputs';
+      };
     };
 }
